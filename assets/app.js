@@ -48,7 +48,9 @@
   /* **强调** → <span class="em">，其余按文本转义 */
   function paraHtml(text) {
     const parts = String(text).split(/\*\*([^*]+)\*\*/g);
-    return parts.map((p, i) => (i % 2 ? '<span class="em">' + esc(p) + '</span>' : esc(p))).join('');
+    const inner = parts.map((p, i) => (i % 2 ? '<span class="em">' + esc(p) + '</span>' : esc(p))).join('');
+    /* 必须用 <p> 包裹：.sheet .body p 上的行高、段间距、两端对齐都挂在 p 上 */
+    return '<p>' + inner + '</p>';
   }
 
   function today() {
@@ -210,8 +212,8 @@
       orn.textContent = '❦ ❦ ❦';
 
       const to = document.createElement('div');
-      to.className = 'to';
-      to.textContent = '亲爱的' + letter.to + '：';
+      to.className = i === 0 ? 'to' : 'to cont';
+      to.textContent = i === 0 ? ('亲爱的' + letter.to + '：') : ('致 ' + letter.to);
 
       const body = document.createElement('div');
       body.className = 'body';
@@ -247,23 +249,35 @@
   }
 
   function layout() {
-    const avail = bookWrap.clientHeight - 6;
+    /* clientHeight 含 padding，要扣掉上下留白才是书真正能占的高度 */
+    const cs = getComputedStyle(bookWrap);
+    const avail = bookWrap.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom) - 6;
     if (avail <= 0) return;
-    /* .sheet 是绝对定位撑满 book，scrollHeight 会被容器反向影响，
-       所以先量正文内容高度，再算整页高度 */
+    /* .body 是 flex 子项会被纵向拉满，scrollHeight 量到的是填充高度而非内容高度。
+       改用「正文最后一行的底边」作为内容真实高度：
+       sheet padding-top 28 + orn(绝对定位不计) + to + body 内容 */
     let max = 0;
     [].forEach.call(book.querySelectorAll('.page'), page => {
       const body = page.querySelector('.body');
       if (!body) return;
-      let h = body.scrollHeight;
+      let contentH = 0;
+      const ps = body.querySelectorAll('p');
+      if (ps.length) {
+        const first = ps[0].getBoundingClientRect();
+        const last = ps[ps.length - 1].getBoundingClientRect();
+        contentH = last.bottom - first.top;
+        /* 段间距 margin-bottom 是折叠掉的，按行高补齐 */
+        const lh = parseFloat(getComputedStyle(ps[0]).lineHeight) || 24;
+        contentH += lh * 0.05 * (ps.length - 1);
+      }
       const to = page.querySelector('.to');
-      if (to) h += to.offsetHeight + 14;
+      if (to) contentH += to.offsetHeight + 20;   /* margin 6 上 + 14 下 */
       const sign = page.querySelector('.sign');
-      if (sign) h += sign.offsetHeight + 18;
+      if (sign) contentH += sign.offsetHeight + 18;
       const pg = page.querySelector('.pgnum');
-      if (pg) h += pg.offsetHeight + 10;
-      h += 48; /* 上下 padding */
-      max = Math.max(max, h);
+      if (pg) contentH += pg.offsetHeight + 10;
+      contentH += 48;  /* sheet padding 28 上 + 20 下 */
+      max = Math.max(max, contentH);
     });
     book.style.height = Math.max(200, Math.min(max, avail, 640)) + 'px';
   }
