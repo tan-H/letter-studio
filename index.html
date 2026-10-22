@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="format-detection" content="telephone=no">
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#f7e7dc">
+<meta name="description" content="写信工坊 · 把说不出口的话，做成一封可以拆开的信">
+<title>写信工坊 · 把说不出口的话做成一封信</title>
+<link rel="stylesheet" href="assets/app.css">
+</head>
+<body>
+
+<!-- ============ 顶栏 ============ -->
+<header class="topbar" id="topbar">
+  <div class="brand">
+    <span class="logo">✉</span>
+    <span class="brand-txt">
+      <b id="brandName">写信工坊</b>
+      <i id="brandSub">把说不出口的话，做成一封可以拆开的信</i>
+    </span>
+  </div>
+  <button class="ghost-btn" id="btnAbout" type="button">关于</button>
+</header>
+
+<!-- ============ 写信台 ============ -->
+<main class="studio" id="studio">
+
+  <section class="panel">
+    <h2 class="ph"><span class="step">1</span>写给谁</h2>
+    <div class="scene-grid" id="sceneGrid"></div>
+    <p class="scene-hint" id="sceneHint"></p>
+  </section>
+
+  <section class="panel">
+    <h2 class="ph"><span class="step">2</span>填几个空</h2>
+    <div class="form">
+      <label class="field">
+        <span>TA 的称呼</span>
+        <input id="fTo" type="text" maxlength="16" placeholder="如：宝贝 / 老王 / 未来的我">
+      </label>
+      <label class="field">
+        <span>你的署名</span>
+        <input id="fSign" type="text" maxlength="24" placeholder="如：永远爱你的 ♥">
+      </label>
+      <label class="field">
+        <span>你们的关系</span>
+        <input id="fRel" type="text" maxlength="24" placeholder="如：大学室友 / 一起搭伙的同事">
+      </label>
+      <label class="field">
+        <span>日期</span>
+        <input id="fDate" type="text" maxlength="24" placeholder="2026年10月22日">
+      </label>
+    </div>
+
+    <div class="field block">
+      <span>想提起的具体事（每行一件，最多 3 件）</span>
+      <textarea id="fMems" rows="3" maxlength="160" placeholder="那碗在楼下等的馄饨&#10;凌晨三点的电话&#10;你笑着说没事的那次"></textarea>
+    </div>
+
+    <div class="field block">
+      <span>最想说的那句话</span>
+      <textarea id="fCore" rows="2" maxlength="120" placeholder="谢谢你当时没有放弃我"></textarea>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2 class="ph"><span class="step">3</span>挑个信封</h2>
+    <div class="theme-row" id="themeRow"></div>
+  </section>
+
+  <section class="panel">
+    <h2 class="ph"><span class="step">4</span>让它长什么样</h2>
+    <div class="opt-grid">
+      <label class="opt"><input type="checkbox" id="oCapsule"><span>时间胶囊</span><i>约定某天才能拆开</i></label>
+      <label class="opt"><input type="checkbox" id="oMusic" checked><span>轻音乐</span><i>合成旋律，无外部音频</i></label>
+      <label class="opt"><input type="checkbox" id="oFloat" checked><span>飘浮的心</span><i>背景氛围</i></label>
+    </div>
+    <div class="capsule-row" id="capsuleRow" hidden>
+      <label class="field">
+        <span>解锁日期与时间</span>
+        <input id="fUnlock" type="datetime-local">
+      </label>
+      <p class="tip">信件会被锁到那一刻之前。对方提前打开会看到倒计时。</p>
+    </div>
+  </section>
+
+  <div class="actions">
+    <button class="primary-btn" id="btnMake" type="button">生成这封信</button>
+    <button class="ghost-btn wide" id="btnPreview" type="button">先看看样子</button>
+  </div>
+
+  <section class="panel result" id="resultPanel" hidden>
+    <h2 class="ph"><span class="step done">✓</span>你的信做好了</h2>
+    <div class="share-box">
+      <label class="field block">
+        <span>把这段链接发给 TA 就能拆开</span>
+        <div class="copy-row">
+          <input id="shareUrl" type="text" readonly>
+          <button class="primary-btn sm" id="btnCopy" type="button">复制</button>
+        </div>
+      </label>
+      <p class="tip">整封信压在链接里，TA 打开即读 —— 没有服务器替你保存任何东西。</p>
+      <div class="share-actions">
+        <button class="primary-btn" id="btnShare" type="button">分享给 TA</button>
+        <button class="ghost-btn" id="btnPrint" type="button">打印成信纸</button>
+        <button class="ghost-btn" id="btnOpenNew" type="button">预览效果</button>
+      </div>
+    </div>
+  </section>
+
+  <footer class="foot">
+    <p>离线可用 · 无需注册 · 信件内容仅存在于你分享的链接中</p>
+  </footer>
+</main>
+
+<!-- ============ 阅读端（打开链接时接管整个页面） ============ -->
+<div class="reader" id="reader" hidden>
+  <div class="bar">
+    <button class="icon-btn" id="btnBack" type="button" title="回到写信台">✎</button>
+    <span class="r-title" id="rTitle">写给你的信</span>
+    <button class="icon-btn" id="btnMusic" type="button" title="轻音乐" hidden>♫</button>
+  </div>
+
+  <div class="capsule" id="capsule" hidden>
+    <div class="cap-inner">
+      <span class="cap-ico">⏳</span>
+      <h3 id="capTitle">这封信还在路上</h3>
+      <p class="cap-desc" id="capDesc">写这封信的人约好，等日子到了才能拆开。</p>
+      <div class="countdown" id="countdown"></div>
+      <p class="cap-foot" id="capFoot"></p>
+    </div>
+  </div>
+
+  <div class="stage" id="stage">
+    <div class="halo" aria-hidden="true"></div>
+    <div class="cover" id="cover">
+      <span class="ln l"></span><span id="coverText"></span><span class="ln r"></span>
+    </div>
+    <div class="envelope" id="envelope" role="button" tabindex="0" aria-label="点击开启信封">
+      <div class="env-back"></div>
+      <div class="peek" id="peek"></div>
+      <div class="env-pocket"></div>
+      <div class="env-flap"></div>
+      <div class="seal" aria-hidden="true">♥</div>
+    </div>
+    <p class="hint" id="hint">轻触信封 · 开启</p>
+  </div>
+
+  <div class="book-wrap" id="bookWrap">
+    <div class="book" id="book"></div>
+  </div>
+
+  <div class="ctrl" id="ctrlWrap" hidden>
+    <div class="swipe-tip" id="swipeTip">向左滑动 · 翻页</div>
+    <div class="dots" id="dots"></div>
+    <div class="nav-row">
+      <button class="nav" id="btnPrev" type="button" aria-label="上一页">‹</button>
+      <button class="nav" id="btnNext" type="button" aria-label="下一页">›</button>
+    </div>
+    <button class="reply-btn" id="btnReply" type="button" hidden>回一封</button>
+  </div>
+  <div class="progress" id="progressWrap" hidden><i id="progressBar"></i></div>
+</div>
+
+<!-- ============ 回信 ============ -->
+<div class="modal" id="replyModal" hidden>
+  <div class="modal-card">
+    <h3>回一封</h3>
+    <p class="tip">TA 收到的信会随你的回信一起带回去（链接里会包含原信摘要）。</p>
+    <label class="field block">
+      <span>你想说的话</span>
+      <textarea id="rBody" rows="4" maxlength="300" placeholder="收到了。眼眶有点热。"></textarea>
+    </label>
+    <label class="field block">
+      <span>署名</span>
+      <input id="rSign" type="text" maxlength="24" placeholder="你的名字">
+    </label>
+    <div class="modal-actions">
+      <button class="ghost-btn" id="btnReplyCancel" type="button">再想想</button>
+      <button class="primary-btn" id="btnReplySend" type="button">生成回信链接</button>
+    </div>
+    <div class="reply-out" id="replyOut" hidden>
+      <input id="replyUrl" type="text" readonly>
+      <button class="primary-btn sm" id="btnReplyCopy" type="button">复制</button>
+      <button class="ghost-btn" id="btnReplyShare" type="button">分享</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 关于 ============ -->
+<div class="modal" id="aboutModal" hidden>
+  <div class="modal-card">
+    <h3>关于这个作品</h3>
+    <div class="about-body">
+      <p><b>写信工坊</b> —— 一个把「说不出口的话」变成可以拆开的信的小工具。</p>
+      <p>它的特别之处：<b>整封信压进链接里</b>。没有服务器存你的内容，没有账号，不收集任何信息。发出去的是一条 URL，打开就是完整的一封信。这样也意味着——链接丢了信就没了，所以请慎重发送。</p>
+      <p>时间胶囊功能可以约定某天才能拆开，提前打开会看到倒计时。</p>
+      <p>所有内容都在你自己的浏览器里生成与压缩，页面可离线打开。</p>
+    </div>
+    <div class="modal-actions">
+      <button class="primary-btn" id="btnAboutClose" type="button">知道了</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+
+<script src="assets/engine.js"></script>
+<script src="assets/codec.js"></script>
+<script src="assets/app.js"></script>
+</body>
+</html>
