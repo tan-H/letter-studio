@@ -188,6 +188,7 @@ input::placeholder,textarea::placeholder{color:#c3b4a9;}
   color:#fff;cursor:pointer;
   box-shadow:0 5px 16px rgba(168,80,94,.28);
   transition:.2s;letter-spacing:.06em;
+  white-space:nowrap;flex:0 0 auto;
 }
 .primary-btn:hover{transform:translateY(-1px);box-shadow:0 8px 22px rgba(168,80,94,.34);}
 .primary-btn:active{transform:translateY(0);}
@@ -198,7 +199,9 @@ input::placeholder,textarea::placeholder{color:#c3b4a9;}
 @keyframes pop{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:none;}}
 .copy-row{display:flex;gap:8px;}
 .copy-row input{flex:1 1 auto;min-width:0;font-size:12.5px;}
+.copy-row button{flex:0 0 auto;}
 .share-actions{display:flex;gap:9px;margin-top:12px;flex-wrap:wrap;}
+.share-actions button{flex:0 0 auto;}
 .qr-box{margin-top:14px;text-align:center;}
 .qr-box img,.qr-box canvas{
   max-width:220px;width:100%;height:auto;
@@ -357,7 +360,7 @@ input::placeholder,textarea::placeholder{color:#c3b4a9;}
 .book-wrap.show{opacity:1;pointer-events:auto;}
 .book{
   position:relative;
-  width:min(90vw,420px);height:400px;
+  width:min(92vw,430px);height:400px;
   perspective:1900px;perspective-origin:50% 50%;
   opacity:0;transform:translateY(22px) scale(.94);
   transition:opacity .75s ease .12s, transform .75s cubic-bezier(.3,.05,.2,1) .12s;
@@ -404,10 +407,15 @@ input::placeholder,textarea::placeholder{color:#c3b4a9;}
   font-size:1.02em;font-weight:600;letter-spacing:.04em;color:#5a463c;
   margin:6px 0 14px;flex:0 0 auto;
 }
+/* 续页只留一行小字页眉，不重复称呼 */
+.sheet .to.cont{
+  font-weight:400;font-size:.9em;color:var(--ink-soft);
+  letter-spacing:.12em;margin:2px 0 18px;
+}
 .sheet .body{flex:1 1 auto;align-self:flex-start;width:100%;}
 .sheet .body p{
   margin:0 0 1.05em;
-  font-size:clamp(16px,4.5vw,18.5px);
+  font-size:clamp(17px,5.1vw,21px);
   line-height:2.02;letter-spacing:.015em;
   text-align:justify;text-justify:inter-ideograph;
 }
@@ -539,8 +547,9 @@ input::placeholder,textarea::placeholder{color:#c3b4a9;}
 .about-body p{margin:0 0 11px;font-size:13.5px;line-height:1.85;color:#5c4a41;}
 .about-body b{color:var(--rose-deep);}
 .modal-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:18px;}
-.reply-out{display:flex;gap:8px;margin-top:14px;}
-.reply-out input{flex:1 1 auto;min-width:0;font-size:12px;}
+.reply-out{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;align-items:center;}
+.reply-out input{flex:1 1 180px;min-width:0;font-size:12px;}
+.reply-out button{flex:0 0 auto;}
 
 /* Toast */
 .toast{
