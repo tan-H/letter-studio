@@ -23,6 +23,8 @@
     theme: 'rose',
     pages: [],
     letter: null,
+    recipe: null,
+    seed: 0,
     cur: 0,
     busy: false,
     opened: false,
@@ -126,14 +128,18 @@
     };
   }
 
+  /* 预览用的正文。和链接里重排出来的必须逐字一致，
+     所以这里只用「配方」推导，不用 state.pages 这种中间产物。 */
   function regenerate() {
     const ctx = collectCtx();
-    const res = E.compose(ctx, 'seed-' + ctx.scene);
+    const res = E.compose(ctx, state.seed, E.CURRENT_LIB);
     state.pages = res.pages;
     $('resultPanel').hidden = true;
   }
 
-  function buildLetter() {
+  /* 链接里放的是「配方」：场景/主题/种子/称呼/记忆点，
+     收信人用同一份 engine.js 在本地重排出完全一样的正文。 */
+  function buildRecipe() {
     const ctx = collectCtx();
     if (!ctx.to) {
       toast('先填一下 TA 的称呼');
@@ -142,35 +148,36 @@
     }
     if (!state.pages.length) regenerate();
 
-    const letter = {
-      v: 1,
+    return {
+      kind: 'letter',
+      lib: E.CURRENT_LIB,
       scene: state.scene,
       theme: state.theme,
+      seed: state.seed,
       to: ctx.to,
       sign: ctx.sign || '你的朋友',
       rel: ctx.rel,
+      core: ctx.core,
+      mems: ctx.mems,
       date: ctx.date,
-      pages: state.pages,
       unlock: $('oCapsule').checked ? ($('fUnlock').value ? new Date($('fUnlock').value).getTime() : 0) : 0,
       music: $('oMusic').checked,
-      float: $('oFloat').checked,
-      replyTo: null
+      float: $('oFloat').checked
     };
-    if (!letter.unlock) letter.unlock = 0;
-    return letter;
   }
 
-  async function makeShareUrl(letter) {
-    const payload = await C.encode(letter);
+  async function makeShareUrl(recipe) {
+    const payload = await C.encode(recipe);
     const base = location.href.split('#')[0];
     return base + '#' + payload;
   }
 
   async function onMake() {
-    const letter = buildLetter();
-    if (!letter) return;
-    state.letter = letter;
-    const url = await makeShareUrl(letter);
+    const recipe = buildRecipe();
+    if (!recipe) return;
+    state.recipe = recipe;
+    state.letter = E.materialize(recipe);
+    const url = await makeShareUrl(recipe);
     $('shareUrl').value = url;
     $('resultPanel').hidden = false;
     $('resultPanel').scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -179,10 +186,11 @@
 
   /* ---------------- 预览：直接进入阅读端 ---------------- */
   async function onPreview() {
-    const letter = buildLetter();
-    if (!letter) return;
-    state.letter = letter;
-    enterReader(letter);
+    const recipe = buildRecipe();
+    if (!recipe) return;
+    state.recipe = recipe;
+    state.letter = E.materialize(recipe);
+    enterReader(state.letter);
   }
 
   /* ---------------- 阅读端 ---------------- */
@@ -542,37 +550,53 @@
     const L = state.letter;
     const body = $('rBody').value.trim();
     if (!body) { toast('写点什么再发吧'); return; }
-    const reply = {
-      v: 1,
+    const sign = $('rSign').value.trim() || L.to;
+
+    /* 原信摘要不直接抄文字，而是把原信的「配方」一起带走：
+       收信人本地重排就能还原原信首段，摘要自然和原信一致。 */
+    const orig = L._recipe
+      ? { recipe: L._recipe }
+      : {
+          to: L.to,
+          sign: L.sign,
+          summary: (L.pages[0] || []).join(' ').slice(0, 80)
+        };
+
+    const recipe = {
+      kind: 'reply',
+      lib: E.CURRENT_LIB,
       scene: 'love',
       theme: L.theme,
+      seed: 0,
       to: L.sign || 'TA',
-      sign: $('rSign').value.trim() || L.to,
+      sign: sign,
       rel: '',
+      core: '',
+      mems: [],
       date: today(),
-      pages: [
-        ['**回信**', body],
-        ['这封信我是收到了的。', '——' + ($('rSign').value.trim() || L.to)]
-      ],
       unlock: 0,
       music: L.music,
       float: L.float,
-      replyTo: { from: L.to, to: L.sign, summary: (L.pages[0] || []).join(' ').slice(0, 80) }
+      body: body,
+      orig: orig
     };
-    const url = await makeShareUrl(reply);
+    /* 注意：不要覆盖 state.letter —— 读者此刻还在读原信，
+       换掉会让页面上的信突然变成回信。 */
+    const url = await makeShareUrl(recipe);
     $('replyUrl').value = url;
     $('replyOut').hidden = false;
-    state.replyLetter = reply;
     toast('回信链接做好了');
   }
 
   async function onReplyShare() {
     const url = $('replyUrl').value;
-    const letter = state.replyLetter;
-    if (!url || !letter) return;
+    if (!url) return;
+    const body = $('rBody').value.trim();
     const payload = {
       title: '给你的回信',
-      text: '收到了你的信，也给你回了一封。\n\n点开看看：\n' + url,
+      text: '收到了你的信，也给你回了一封。\n\n' +
+        (body ? body + '\n\n' : '') +
+        '点开看看：\n' + url,
       url: url
     };
     if (navigator.share) {
@@ -776,26 +800,63 @@
   }
 
   /* ---------------- 启动 ---------------- */
+
+  /* 解析链接里的载荷并进入阅读端。
+     v2 是「配方」，收信人本地重排出正文；v1 老链接自带正文，直接读。 */
+  async function openFromHash(hash) {
+    if (!hash) return false;
+    try {
+      const res = await C.decode(hash);
+      if (res.version === 2) {
+        const letter = E.materialize(res.recipe);
+        if (!letter || !letter.pages || !letter.pages.length) return false;
+        state.recipe = res.recipe;
+        state.letter = letter;
+        enterReader(letter);
+        return true;
+      }
+      if (res.letter && res.letter.pages && res.letter.pages.length) {
+        /* v1 老链接：正文已随链接带过来，直接读。
+           v1 的 replyTo 语义是 {from: 原信收件人, to: 原信署名人}，
+           提示条要显示的是「原信写给谁」，所以统一折算成新结构。 */
+        const letter = res.letter;
+        letter.v = 1;
+        if (letter.replyTo) {
+          letter.replyTo = {
+            to: letter.replyTo.from || '',
+            sign: letter.replyTo.to || '',
+            summary: letter.replyTo.summary || ''
+          };
+        }
+        state.letter = letter;
+        enterReader(letter);
+        return true;
+      }
+    } catch (e) {
+      toast('这个链接好像不完整');
+    }
+    return false;
+  }
+
   async function boot() {
     buildScenes();
     buildThemes();
     bind();
     $('fDate').value = today();
+    /* 种子在本次会话内固定：改一个字重排一次，但同一封信重开链接必须一模一样 */
+    state.seed = (Math.random() * 0xffffffff) >>> 0;
     regenerate();
 
-    const hash = location.hash.replace(/^#/, '');
-    if (hash) {
-      try {
-        const letter = await C.decode(hash);
-        if (letter && letter.pages && letter.pages.length) {
-          enterReader(letter);
-          return;
-        }
-      } catch (e) {
-        toast('这个链接好像不完整');
-      }
-    }
+    await openFromHash(location.hash.replace(/^#/, ''));
   }
+
+  /* 同一标签页里粘贴新链接时不会重新加载页面，
+     靠 hashchange 才能切到新的一封信。 */
+  window.addEventListener('hashchange', () => {
+    const hash = location.hash.replace(/^#/, '');
+    if (!hash) return;
+    openFromHash(hash);
+  });
 
   document.addEventListener('DOMContentLoaded', boot);
 })();
