@@ -701,7 +701,12 @@
       }
     });
     $('btnOpenNew').addEventListener('click', () => {
-      if (state.letter) window.open(location.href.split('#')[0] + '#' + location.hash.split('#')[1], '_blank');
+      /* 用已经生成好的链接：onMake() 只把链接写进输入框，并没有改 location.hash，
+         从 hash 里取会拿到 undefined，拼出 #undefined 必然打不开。 */
+      const url = $('shareUrl').value;
+      if (!url) { toast('先生成这封信'); return; }
+      const w = window.open(url, '_blank');
+      if (!w) toast('浏览器拦截了新窗口，请允许弹窗');
     });
     $('btnShare').addEventListener('click', onShare);
     $('btnPrint').addEventListener('click', onPrint);
