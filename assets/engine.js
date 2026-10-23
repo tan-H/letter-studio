@@ -25,7 +25,7 @@
   /* 用户输入会进 innerHTML，必须转义，否则分享链接可被注入脚本 */
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, c => (
-      { '&': '&', '<': '<', '>': '>', '"': '"', "'": '&#39;' }[c]
+      { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
     ));
   }
 
@@ -311,6 +311,42 @@
   const SCENE_MAP = {};
   SCENES.forEach(s => { SCENE_MAP[s.key] = s; });
 
+  /* v2 链接只传「配方」，收信人靠本地重排还原成文。
+     所以句式库与 compose 规则一旦发布就冻结：改动会让已发出的老链接失真。
+     以后要改词，请把 SCENES 复制成新版本放进 LIBS，并把 CURRENT_LIB 指过去。
+     scenes 存深拷贝：LIBS[1] 必须与 SCENES 完全隔离，
+     否则日后改 SCENES 会连带改掉老库，老链接重排出来的文字就变了。 */
+  function cloneScenes(src) {
+    return src.map(s => ({
+      key: s.key, name: s.name, hint: s.hint, tone: s.tone,
+      openers: s.openers.slice(),
+      memFrames: s.memFrames.slice(),
+      detailFrames: s.detailFrames.slice(),
+      midFrames: s.midFrames.slice(),
+      coreFrames: s.coreFrames.slice(),
+      closers: s.closers.slice(),
+      wishFrames: s.wishFrames.slice()
+    }));
+  }
+
+  const LIBS = {
+    1: { scenes: cloneScenes(SCENES), replyLead: '这封信我是收到了的。' }
+  };
+  const CURRENT_LIB = 1;
+
+  /* 主题与场景的顺序即协议的一部分：链接里存的是下标，两端必须一致 */
+  const THEME_KEYS = ['rose', 'sage', 'night', 'gold'];
+  const SCENE_KEYS = SCENES.map(s => s.key);
+
+  function libOf(v) {
+    return LIBS[v] || LIBS[CURRENT_LIB];
+  }
+
+  function sceneOf(lib, key) {
+    const scenes = libOf(lib).scenes;
+    return scenes.filter(s => s.key === key)[0] || scenes[0];
+  }
+
   /* 段落 → 页面。
      3D 翻页要求所有页等高，书的高度由内容最多的那页决定；
      分页若不均，短页就会留下大片空白。这里按累计内容长度找切点，
@@ -345,9 +381,12 @@
     return pages.filter(p => p.length);
   }
 
-  function compose(ctx, seed) {
-    const scene = SCENE_MAP[ctx.scene] || SCENES[0];
-    const rnd = mulberry32(hashStr(String(seed || '') + '|' + ctx.scene + '|' + ctx.to + '|' + ctx.core));
+  function compose(ctx, seed, lib) {
+    const L = libOf(lib);
+    const scene = sceneOf(lib, ctx.scene);
+    /* 种子必须由两端算出的同一串输入派生，
+       所以这里只用「种子 + 场景 + 称呼 + 核心句」——都在配方里，收信人算得出同样的结果 */
+    const rnd = mulberry32(hashStr(String(seed == null ? '' : seed) + '|' + ctx.scene + '|' + ctx.to + '|' + ctx.core));
     const pick = arr => arr[Math.floor(rnd() * arr.length)];
 
     const mems = (ctx.mems || []).filter(m => m && m.trim());
@@ -371,5 +410,71 @@
     return { pages: toPages(paras) };
   }
 
-  global.LetterEngine = { SCENES, SCENE_MAP, compose, esc };
+  /* 回信不是模板生成的，是收信人手写的正文。
+     所以正文原样带上，只有「收到了」那句用句式库里的固定说法。 */
+  function composeReply(body, sign, lib) {
+    const L = libOf(lib);
+    return {
+      pages: [
+        ['**回信**', body],
+        [L.replyLead, '——' + sign]
+      ]
+    };
+  }
+
+  /* 配方 → 阅读端能直接用的信。
+     收信人拿到链接后，本地用同一份句式库重排出逐字相同的正文。 */
+  function materialize(recipe) {
+    const lib = recipe.lib;
+    const letter = {
+      v: 2,
+      scene: recipe.scene,
+      theme: recipe.theme,
+      to: recipe.to,
+      sign: recipe.sign,
+      rel: recipe.rel,
+      date: recipe.date,
+      unlock: recipe.unlock,
+      music: !!recipe.music,
+      float: !!recipe.float,
+      replyTo: null,
+      _recipe: recipe
+    };
+
+    if (recipe.kind === 'reply') {
+      letter.pages = composeReply(recipe.body, recipe.sign, lib).pages;
+      const o = recipe.orig || {};
+      let summary = o.summary || '';
+      let oTo = o.to || '';
+      let oSign = o.sign || '';
+      if (o.recipe) {
+        /* 原信的配方在手，本地重排首段即可还原写信人当时看到的摘要 */
+        const orig = materialize(o.recipe);
+        summary = (orig.pages[0] || []).join(' ').slice(0, 80);
+        oTo = o.recipe.to;
+        oSign = o.recipe.sign;
+      }
+      /* to = 原信的收信人，sign = 原信的署名人。
+         提示条说的是「原信写给谁」，所以要给收信人，不是署名人。 */
+      letter.replyTo = { to: oTo, sign: oSign, summary: summary };
+      return letter;
+    }
+
+    letter.pages = compose({
+      scene: recipe.scene,
+      to: recipe.to,
+      sign: recipe.sign,
+      rel: recipe.rel,
+      core: recipe.core,
+      mems: recipe.mems,
+      date: recipe.date
+    }, recipe.seed, lib).pages;
+
+    return letter;
+  }
+
+  global.LetterEngine = {
+    SCENES, SCENE_MAP, LIBS, CURRENT_LIB, THEME_KEYS, SCENE_KEYS,
+    libOf, sceneOf, compose, composeReply, materialize, esc
+  };
 })(window);
